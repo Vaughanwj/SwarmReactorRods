@@ -1,0 +1,630 @@
+<title>Coupling Propagation Map</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-raised: #ffffff;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6; /* agent-planner */
+    --series-2: #eb6834; /* agent-researcher */
+    --series-3: #1baf7a; /* agent-writer */
+    --series-4: #eda100; /* agent-editor */
+    --series-5: #e87ba4; /* agent-qa */
+    --series-6: #4a3aa7; /* agent-injector */
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-critical: #d03b3b;
+    --status-neutral: #898781;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --surface-raised: #201f1d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --series-5: #d55181;
+      --series-6: #9085e9;
+      --status-critical: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-raised: #201f1d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #9085e9;
+    --status-critical: #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding-inline: 20px;
+    padding-block: 28px 48px;
+    max-width: 960px;
+    margin-inline: auto;
+  }
+
+  h1 { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; }
+  .subtitle { color: var(--text-secondary); font-size: 14.5px; line-height: 1.5; max-width: 62ch; margin: 0 0 24px; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-end;
+    margin-bottom: 20px;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 6px; }
+  .control-label {
+    font-size: 11.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--text-muted);
+  }
+  .segmented {
+    display: inline-flex; border: 1px solid var(--border); border-radius: 9px;
+    overflow: hidden; background: var(--surface);
+  }
+  .segmented button {
+    appearance: none; border: none; background: transparent; cursor: pointer;
+    font: inherit; font-size: 13.5px; font-weight: 550; color: var(--text-secondary);
+    padding: 8px 14px; transition: background-color 120ms ease, color 120ms ease;
+  }
+  .segmented button + button { border-left: 1px solid var(--border); }
+  .segmented button[aria-pressed="true"] {
+    background: var(--text-primary); color: var(--surface);
+  }
+  .segmented button:hover[aria-pressed="false"] { background: var(--grid); }
+  .segmented button:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; }
+
+  .view-toggle {
+    margin-left: auto; align-self: flex-end;
+    background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 550;
+    padding: 8px 12px; cursor: pointer;
+  }
+  .view-toggle:hover { background: var(--grid); }
+  .view-toggle:focus-visible { outline: 2px solid var(--series-1); outline-offset: 1px; }
+
+  .context-note {
+    font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 22px;
+  }
+  .context-note strong { color: var(--text-primary); }
+
+  .kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+  .stat-tile {
+    flex: 1 1 160px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .stat-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 8px; }
+  .stat-value { font-size: 32px; font-weight: 650; letter-spacing: -0.01em; line-height: 1; }
+  .stat-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 6px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 9px;
+    font-size: 11.5px; font-weight: 650; padding: 3px 9px; border-radius: 999px;
+  }
+  .pill-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .pill.good { background: color-mix(in srgb, var(--status-good) 16%, transparent); color: var(--status-good); }
+  .pill.critical { background: color-mix(in srgb, var(--status-critical) 16%, transparent); color: var(--status-critical); }
+  .pill .pill-dot.good { background: var(--status-good); }
+  .pill .pill-dot.critical { background: var(--status-critical); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 18px 14px; margin-bottom: 18px;
+  }
+  .card-title { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+  .card-hint { font-size: 12.5px; color: var(--text-muted); margin: 0 0 14px; }
+
+  .diagram-scroll { overflow-x: auto; }
+  .diagram-scroll svg { display: block; min-width: 640px; width: 100%; height: auto; }
+
+  .lane-label { font-size: 12px; font-weight: 600; fill: var(--text-secondary); }
+  .lane-label-empty { fill: var(--text-muted); font-weight: 500; font-style: italic; }
+  .tick-label { font-size: 10.5px; fill: var(--text-muted); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .lane-rule { stroke: var(--grid); stroke-width: 1; }
+
+  .node-hit { fill: transparent; cursor: pointer; }
+  .node-hit:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+  .node-ring { fill: var(--surface); }
+  .coupled-ring { fill: none; stroke: var(--status-critical); stroke-width: 2; }
+
+  .edge-path { fill: none; stroke-width: 2; cursor: pointer; }
+  .edge-path.same-agent { stroke: var(--status-neutral); opacity: 0.55; }
+  .edge-path.accounted { stroke: var(--status-good); }
+  .edge-path.coupled { stroke: var(--status-critical); }
+  .edge-path.unresolved { stroke: var(--status-warning); stroke-dasharray: 3 3; }
+  .edge-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px 22px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .legend-group { display: flex; flex-direction: column; gap: 7px; }
+  .legend-group-title { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .legend-items { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .legend-line { width: 16px; height: 2px; flex: none; border-radius: 1px; }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10;
+    background: var(--text-primary); color: var(--surface);
+    font-size: 12.5px; line-height: 1.45; padding: 8px 10px; border-radius: 8px;
+    max-width: 260px; opacity: 0; transform: translate(-50%, -100%);
+    transition: opacity 100ms ease; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip .t-title { font-weight: 650; margin-bottom: 3px; }
+  .tooltip .t-row { color: var(--text-secondary, #c3c2b7); opacity: 0.85; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 650; }
+  td { color: var(--text-secondary); }
+  td.mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; }
+  .table-scroll { overflow-x: auto; }
+  .status-text { font-weight: 600; }
+  .status-text.same-agent { color: var(--text-muted); }
+  .status-text.accounted { color: var(--status-good); }
+  .status-text.coupled { color: var(--status-critical); }
+  .status-text.unresolved { color: var(--status-warning); }
+
+  footer { font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-top: 8px; }
+  footer a { color: inherit; }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 560px) {
+    .kpi-row { flex-direction: column; }
+    .controls { align-items: stretch; }
+    .view-toggle { margin-left: 0; align-self: flex-start; }
+  }
+</style>
+
+<h1>Coupling Propagation Map</h1>
+<p class="subtitle">
+  Two replayed swarm logs, same measurement. Toggle the scenario and the
+  TaskContext to see why an agent's own declared task, not just the raw
+  reads and writes, decides whether a cross-agent hand-off counts as coupling.
+</p>
+
+<div class="controls">
+  <div class="control-group">
+    <span class="control-label" id="scenario-label">Scenario</span>
+    <div class="segmented" role="group" aria-labelledby="scenario-label" id="scenario-toggle">
+      <button type="button" data-value="benign" aria-pressed="true">Benign</button>
+      <button type="button" data-value="steered" aria-pressed="false">Steered</button>
+    </div>
+  </div>
+  <div class="control-group">
+    <span class="control-label" id="context-label">Task context</span>
+    <div class="segmented" role="group" aria-labelledby="context-label" id="context-toggle">
+      <button type="button" data-value="NullTaskContext" aria-pressed="true">Null (naive)</button>
+      <button type="button" data-value="DeclaredTaskContext" aria-pressed="false">Declared</button>
+    </div>
+  </div>
+  <button type="button" class="view-toggle" id="view-toggle" aria-pressed="false">Show data table</button>
+</div>
+
+<p class="context-note" id="context-note"></p>
+
+<div class="kpi-row">
+  <div class="stat-tile">
+    <div class="stat-label">Coupling (k)</div>
+    <div class="stat-value" id="stat-k">&nbsp;</div>
+    <span class="pill" id="stat-k-pill"><span class="pill-dot"></span><span id="stat-k-pill-text"></span></span>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Coupled actions</div>
+    <div class="stat-value" id="stat-coupled">&nbsp;</div>
+    <div class="stat-sub" id="stat-coupled-sub"></div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Total actions</div>
+    <div class="stat-value" id="stat-total">&nbsp;</div>
+    <div class="stat-sub">in the reporting window</div>
+  </div>
+</div>
+
+<div class="card" id="diagram-card">
+  <p class="card-title">Propagation graph</p>
+  <p class="card-hint">Circles are actions, positioned by agent (row) and time (column). Arrows are consumption edges: an arrow from action A to action B means B's action read something A produced.</p>
+  <div class="diagram-scroll">
+    <svg id="diagram-svg" viewBox="0 0 900 400" role="img" aria-label="Propagation graph"></svg>
+  </div>
+  <div class="legend">
+    <div class="legend-group">
+      <span class="legend-group-title">Agent</span>
+      <div class="legend-items" id="legend-agents"></div>
+    </div>
+    <div class="legend-group">
+      <span class="legend-group-title">Edge (consumption)</span>
+      <div class="legend-items">
+        <span class="legend-item"><span class="legend-line" style="background:var(--status-neutral)"></span>Same agent</span>
+        <span class="legend-item"><span class="legend-line" style="background:var(--status-good)"></span>Declared hand-off</span>
+        <span class="legend-item"><span class="legend-line" style="background:var(--status-critical)"></span>Coupled (undeclared)</span>
+        <span class="legend-item"><span class="legend-line" style="background:var(--status-warning)"></span>Unresolved</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="table-card" hidden>
+  <p class="card-title">Actions</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Action</th><th>Agent</th><th>Kind</th><th>Timestamp (UTC)</th><th>Coupled</th></tr></thead>
+      <tbody id="actions-table-body"></tbody>
+    </table>
+  </div>
+  <p class="card-title" style="margin-top:20px;">Consumption edges</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Consumer</th><th>Producer</th><th>Artifact</th><th>Classification</th></tr></thead>
+      <tbody id="edges-table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<footer>
+  Generated from <code>demo/benign.jsonl</code> and <code>demo/steered.jsonl</code> in
+  the SwarmReactorRods repository, replayed through
+  <code>propagation_recorder</code>'s <code>JsonlReplayAdapter</code>. Node/edge
+  classification is derived for this visualization only; the coupling numbers
+  themselves come from the library's own <code>CouplingCalculator</code>, unmodified.
+  Exact-match identity only: a paraphrased read of the same idea will not
+  appear as an edge here.
+</footer>
+
+<div class="tooltip" id="tooltip" role="tooltip"></div>
+
+<script>
+const DATA = /*__VIZ_DATA_JSON__*/;
+
+const AGENT_ORDER = [
+  { id: "agent-planner",    label: "Planner",    color: "var(--series-1)" },
+  { id: "agent-researcher", label: "Researcher", color: "var(--series-2)" },
+  { id: "agent-writer",     label: "Writer",     color: "var(--series-3)" },
+  { id: "agent-editor",     label: "Editor",     color: "var(--series-4)" },
+  { id: "agent-qa",         label: "QA",         color: "var(--series-5)" },
+  { id: "agent-injector",   label: "Injector",   color: "var(--series-6)" },
+];
+
+const CONTEXT_COPY = {
+  NullTaskContext: "<strong>Null (naive):</strong> nothing is declared. Every cross-agent read the library sees counts as coupling, whether or not it was that agent's job.",
+  DeclaredTaskContext: "<strong>Declared:</strong> the pipeline's real hand-offs (planner → researcher → writer → editor) are declared through a TaskContext adapter. Only reads outside that declaration count as coupling.",
+};
+
+let state = { scenario: "benign", context: "NullTaskContext", showTable: false };
+
+const svgNS = "http://www.w3.org/2000/svg";
+const tooltip = document.getElementById("tooltip");
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toISOString().slice(11, 19) + "Z";
+}
+
+function shortId(id) {
+  return id.slice(0, 8) + "…";
+}
+
+function currentView() {
+  return DATA[state.scenario][state.context];
+}
+
+function showTooltip(x, y, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.left = x + "px";
+  tooltip.style.top = (y - 10) + "px";
+  tooltip.classList.add("visible");
+}
+function hideTooltip() { tooltip.classList.remove("visible"); }
+
+function renderControls() {
+  document.querySelectorAll("#scenario-toggle button").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.value === state.scenario));
+  });
+  document.querySelectorAll("#context-toggle button").forEach(b => {
+    b.setAttribute("aria-pressed", String(b.dataset.value === state.context));
+  });
+  document.getElementById("view-toggle").textContent = state.showTable ? "Show diagram" : "Show data table";
+  document.getElementById("view-toggle").setAttribute("aria-pressed", String(state.showTable));
+  document.getElementById("diagram-card").hidden = state.showTable;
+  document.getElementById("table-card").hidden = !state.showTable;
+  document.getElementById("context-note").innerHTML = CONTEXT_COPY[state.context];
+}
+
+function renderStats() {
+  const view = currentView();
+  const est = view.estimate;
+  const kPct = Math.round(est.k * 100);
+  document.getElementById("stat-k").textContent = kPct + "%";
+  document.getElementById("stat-coupled").textContent = String(est.coupled_actions);
+  document.getElementById("stat-coupled-sub").textContent = "of " + est.total_actions + " actions";
+  document.getElementById("stat-total").textContent = String(est.total_actions);
+
+  const pill = document.getElementById("stat-k-pill");
+  const pillText = document.getElementById("stat-k-pill-text");
+  const dot = pill.querySelector(".pill-dot");
+  pill.classList.remove("good", "critical");
+  dot.classList.remove("good", "critical");
+  if (est.coupled_actions === 0) {
+    pill.classList.add("good"); dot.classList.add("good");
+    pillText.textContent = "Clean";
+  } else {
+    pill.classList.add("critical"); dot.classList.add("critical");
+    pillText.textContent = "Elevated";
+  }
+}
+
+function renderLegendAgents() {
+  const el = document.getElementById("legend-agents");
+  el.innerHTML = "";
+  AGENT_ORDER.forEach(a => {
+    const item = document.createElement("span");
+    item.className = "legend-item";
+    const dot = document.createElement("span");
+    dot.className = "legend-swatch";
+    dot.style.background = a.color;
+    item.appendChild(dot);
+    item.appendChild(document.createTextNode(a.label));
+    el.appendChild(item);
+  });
+}
+
+function buildEl(tag, attrs) {
+  const el = document.createElementNS(svgNS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function renderDiagram() {
+  const view = currentView();
+  const svg = document.getElementById("diagram-svg");
+  svg.innerHTML = "";
+
+  const marginLeft = 116, marginRight = 20, marginTop = 30, laneHeight = 56;
+  const width = 900;
+  const plotWidth = width - marginLeft - marginRight;
+  const height = marginTop + AGENT_ORDER.length * laneHeight + 10;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+  const tMin = new Date(DATA.window.start).getTime();
+  const tMax = new Date(DATA.window.end).getTime();
+  const x = (iso) => marginLeft + ((new Date(iso).getTime() - tMin) / (tMax - tMin)) * plotWidth;
+  const laneY = {};
+  AGENT_ORDER.forEach((a, i) => { laneY[a.id] = marginTop + i * laneHeight + laneHeight / 2; });
+
+  // time axis ticks, every 2 minutes
+  const tickCount = Math.round((tMax - tMin) / 120000);
+  for (let i = 0; i <= tickCount; i++) {
+    const t = tMin + i * 120000;
+    const px = marginLeft + ((t - tMin) / (tMax - tMin)) * plotWidth;
+    svg.appendChild(buildEl("line", { x1: px, x2: px, y1: marginTop - 8, y2: height - 6, class: "grid-line" }));
+    const label = new Date(t).toISOString().slice(11, 16);
+    const tick = buildEl("text", { x: px, y: marginTop - 14, class: "tick-label", "text-anchor": "middle" });
+    tick.textContent = label;
+    svg.appendChild(tick);
+  }
+
+  // lanes
+  const presentAgents = new Set(view.nodes.map(n => n.agent_id));
+  AGENT_ORDER.forEach((a, i) => {
+    const y = laneY[a.id];
+    svg.appendChild(buildEl("line", { x1: marginLeft, x2: width - marginRight, y1: y, y2: y, class: "lane-rule" }));
+    const label = buildEl("text", {
+      x: marginLeft - 12, y: y + 4, class: presentAgents.has(a.id) ? "lane-label" : "lane-label lane-label-empty",
+      "text-anchor": "end",
+    });
+    label.textContent = a.label + (presentAgents.has(a.id) ? "" : " (idle)");
+    svg.appendChild(label);
+  });
+
+  const nodeById = {};
+  view.nodes.forEach(n => { nodeById[n.action_id] = n; });
+
+  // edges first, under nodes
+  view.consumption_edges.forEach(edge => {
+    const consumer = nodeById[edge.action_id];
+    const cx2 = x(consumer.timestamp), cy2 = laneY[consumer.agent_id];
+
+    if (!edge.producer_action_id) {
+      // unresolved: short dangling stub to the left of the consumer node
+      const stubX = cx2 - 26;
+      const path = buildEl("path", {
+        d: `M ${stubX} ${cy2} L ${cx2 - 10} ${cy2}`,
+        class: "edge-path unresolved",
+      });
+      svg.appendChild(path);
+      const hit = buildEl("path", { d: `M ${stubX} ${cy2} L ${cx2 - 10} ${cy2}`, class: "edge-hit" });
+      attachEdgeTooltip(hit, edge, null, consumer);
+      svg.appendChild(hit);
+      return;
+    }
+
+    const producer = nodeById[edge.producer_action_id];
+    const cx1 = x(producer.timestamp), cy1 = laneY[producer.agent_id];
+    const midX = (cx1 + cx2) / 2;
+    const sameLane = cy1 === cy2;
+    const bow = sameLane ? -18 : 0;
+    const d = `M ${cx1} ${cy1} Q ${midX} ${(cy1 + cy2) / 2 + bow} ${cx2} ${cy2}`;
+    const path = buildEl("path", { d, class: "edge-path " + edge.classification, "marker-end": "url(#arrow-" + edge.classification + ")" });
+    svg.appendChild(path);
+    const hit = buildEl("path", { d, class: "edge-hit" });
+    attachEdgeTooltip(hit, edge, producer, consumer);
+    svg.appendChild(hit);
+  });
+
+  // arrowhead defs. Fill is set directly from the same token the edge's
+  // stroke uses (not currentColor: a marker's content does not inherit
+  // `color` from the <path> that references it, only from the <marker>
+  // element itself, so currentColor here would resolve to the SVG's
+  // inherited text color instead of the edge's classification color).
+  const EDGE_COLOR_VAR = {
+    "same-agent": "var(--status-neutral)",
+    "accounted": "var(--status-good)",
+    "coupled": "var(--status-critical)",
+    "unresolved": "var(--status-warning)",
+  };
+  const defs = buildEl("defs", {});
+  Object.keys(EDGE_COLOR_VAR).forEach(cls => {
+    const marker = buildEl("marker", {
+      id: "arrow-" + cls, viewBox: "0 0 8 8", refX: "7", refY: "4",
+      markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse",
+    });
+    const path = buildEl("path", { d: "M0,0 L8,4 L0,8 z", fill: EDGE_COLOR_VAR[cls] });
+    marker.appendChild(path);
+    defs.appendChild(marker);
+  });
+  svg.insertBefore(defs, svg.firstChild);
+
+  // action nodes on top
+  view.nodes.forEach(n => {
+    const cx = x(n.timestamp), cy = laneY[n.agent_id];
+    const agentColor = (AGENT_ORDER.find(a => a.id === n.agent_id) || {}).color || "var(--text-muted)";
+    const isCoupled = view.coupled_action_ids.includes(n.action_id);
+
+    const ring = buildEl("circle", { cx, cy, r: 10, class: "node-ring" });
+    svg.appendChild(ring);
+    const dot = buildEl("circle", { cx, cy, r: 8, fill: agentColor });
+    svg.appendChild(dot);
+    if (isCoupled) {
+      svg.appendChild(buildEl("circle", { cx, cy, r: 13, class: "coupled-ring" }));
+    }
+    const hit = buildEl("circle", { cx, cy, r: 16, class: "node-hit", tabindex: "0" });
+    attachNodeTooltip(hit, n, isCoupled);
+    svg.appendChild(hit);
+  });
+}
+
+function attachNodeTooltip(el, node, isCoupled) {
+  const html = `<div class="t-title">${node.action_id} · ${node.agent_id}</div>` +
+    `<div class="t-row">${node.kind} · ${fmtTime(node.timestamp)}</div>` +
+    (isCoupled ? `<div class="t-row">coupled: an unaccounted cross-agent read fed this action</div>` : "");
+  const show = (e) => showTooltip(e.clientX, e.clientY, html);
+  el.addEventListener("pointermove", show);
+  el.addEventListener("pointerenter", show);
+  el.addEventListener("pointerleave", hideTooltip);
+  el.addEventListener("focus", (e) => { const r = el.getBoundingClientRect(); showTooltip(r.left + r.width / 2, r.top, html); });
+  el.addEventListener("blur", hideTooltip);
+}
+
+function attachEdgeTooltip(el, edge, producer, consumer) {
+  const reason = {
+    "same-agent": "same agent produced and consumed this — never coupling",
+    "accounted": `cross-agent, but ${consumer.agent_id}'s declared task expects this input`,
+    "coupled": `cross-agent and undeclared — counts as coupling`,
+    "unresolved": "no production in this window matched this consumption (ignored, not an error)",
+  }[edge.classification];
+  const title = producer ? `${producer.action_id} → ${consumer.action_id}` : `→ ${consumer.action_id}`;
+  const html = `<div class="t-title">${title}</div>` +
+    `<div class="t-row">artifact ${shortId(edge.artifact_id)}</div>` +
+    `<div class="t-row">${reason}</div>`;
+  const show = (e) => showTooltip(e.clientX, e.clientY, html);
+  el.addEventListener("pointermove", show);
+  el.addEventListener("pointerenter", show);
+  el.addEventListener("pointerleave", hideTooltip);
+}
+
+function renderTable() {
+  const view = currentView();
+  const nodeById = {};
+  view.nodes.forEach(n => { nodeById[n.action_id] = n; });
+
+  const actionsBody = document.getElementById("actions-table-body");
+  actionsBody.innerHTML = "";
+  view.nodes.forEach(n => {
+    const isCoupled = view.coupled_action_ids.includes(n.action_id);
+    const tr = document.createElement("tr");
+    const cells = [n.action_id, n.agent_id, n.kind, fmtTime(n.timestamp)];
+    cells.forEach((val, i) => {
+      const td = document.createElement("td");
+      if (i === 0) td.className = "mono";
+      td.textContent = val;
+      tr.appendChild(td);
+    });
+    const coupledTd = document.createElement("td");
+    coupledTd.textContent = isCoupled ? "yes" : "—";
+    if (isCoupled) coupledTd.className = "status-text coupled";
+    tr.appendChild(coupledTd);
+    actionsBody.appendChild(tr);
+  });
+
+  const edgesBody = document.getElementById("edges-table-body");
+  edgesBody.innerHTML = "";
+  view.consumption_edges.forEach(edge => {
+    const tr = document.createElement("tr");
+    const consumerTd = document.createElement("td");
+    consumerTd.className = "mono"; consumerTd.textContent = edge.action_id;
+    tr.appendChild(consumerTd);
+    const producerTd = document.createElement("td");
+    producerTd.className = "mono"; producerTd.textContent = edge.producer_action_id || "—";
+    tr.appendChild(producerTd);
+    const artifactTd = document.createElement("td");
+    artifactTd.className = "mono"; artifactTd.textContent = shortId(edge.artifact_id);
+    tr.appendChild(artifactTd);
+    const classTd = document.createElement("td");
+    classTd.className = "status-text " + edge.classification;
+    classTd.textContent = edge.classification;
+    tr.appendChild(classTd);
+    edgesBody.appendChild(tr);
+  });
+}
+
+function renderAll() {
+  renderControls();
+  renderStats();
+  renderDiagram();
+  renderTable();
+}
+
+document.getElementById("scenario-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  state.scenario = btn.dataset.value;
+  renderAll();
+});
+document.getElementById("context-toggle").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  state.context = btn.dataset.value;
+  renderAll();
+});
+document.getElementById("view-toggle").addEventListener("click", () => {
+  state.showTable = !state.showTable;
+  renderControls();
+});
+
+renderLegendAgents();
+renderAll();
+</script>

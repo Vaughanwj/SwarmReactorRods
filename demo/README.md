@@ -22,8 +22,32 @@ per the brief's own scope boundary, and none of it is imported by
   "coupled" as a steered one.
 - `run_scenario.py` — replays both logs under both `NullTaskContext` and
   `DeclaredTaskContext`, prints the four resulting `k` values, and writes a
-  graph export JSON for each (input to the visualization step, item 2 in the
-  brief's next stage — not built here).
+  graph export JSON for each.
+- `export_visualization_data.py` — item 2's data step. Replays the same four
+  combinations and writes `logs/viz_data.json`: each combination's graph
+  export (the library's unmodified `GraphExportReporter` shape) plus a
+  per-edge classification (`same-agent` / `accounted` / `coupled` /
+  `unresolved`). That classification mirrors `CouplingCalculator`'s own
+  producer-resolution and cross-agent check, applied per edge instead of
+  aggregated — a visualization concern, not a library change; the `k` values
+  it implies are cross-checked against the library's own
+  `CouplingEstimate` in the script.
+- `viz_template.html` / `build_viz_page.py` — the page and the script that
+  bakes `viz_data.json` into it, producing `viz.html`: an interactive,
+  self-contained propagation-graph viewer (agent lanes × time, consumption
+  edges colored by classification, hoverable, with a table view). Kept as
+  template + data rather than one file so either can change independently.
+
+`viz.html` and `logs/viz_data.json` are generated, not committed (see
+`.gitignore`). Regenerate with:
+
+```
+python demo/export_visualization_data.py
+python demo/build_viz_page.py
+```
+
+`viz.html` is then a complete standalone page — open it directly in a
+browser, no server needed.
 
 ## The scenario
 
