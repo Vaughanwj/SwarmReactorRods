@@ -1,0 +1,24 @@
+# Tooling: hatchling build backend, plain pip/venv workflow (no poetry or uv required).
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "propagation-recorder"
+version = "0.1.0"
+description = "Records which agent outputs each agent action consumed and estimates coupling (k)."
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "mypy>=1.10"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["propagation_recorder"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+files = ["propagation_recorder", "tests"]

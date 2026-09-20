@@ -1,0 +1,6 @@
+{"event": "action", "action_id": "a1", "agent_id": "agent-1", "kind": "write", "timestamp": "2026-09-20T10:00:00Z"}
+{"event": "production", "action_id": "a1", "payload": "result: 42", "context": {}}
+{"event": "action", "action_id": "a2", "agent_id": "agent-2", "kind": "read", "timestamp": "2026-09-20T10:00:05Z"}
+{"event": "consumption", "action_id": "a2", "payload": "result: 42", "context": {}}
+{"event": "action", "action_id": "a3", "agent_id": "agent-2", "kind": "read", "timestamp": "2026-09-20T10:00:10Z"}
+{"event": "consumption", "action_id": "a3", "payload": "result: 42 (paraphrased)", "context": {"note": "unused"}}
