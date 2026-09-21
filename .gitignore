@@ -12,3 +12,6 @@ demo/logs/*_graph.json
 # regenerate with those two scripts (see demo/README.md).
 demo/logs/viz_data.json
 demo/viz.html
+
+# Applied patch files kept locally, not part of the repo
+*.patch
