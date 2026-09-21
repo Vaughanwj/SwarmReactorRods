@@ -152,25 +152,26 @@ def build_view(log_path: Path, task_context: TaskContext) -> dict[str, object]:
 
 
 def main() -> None:
-    benign_log = LOGS_DIR / "benign.jsonl"
-    steered_log = LOGS_DIR / "steered.jsonl"
-    if not benign_log.exists() or not steered_log.exists():
+    logs = {
+        "benign": LOGS_DIR / "benign.jsonl",
+        "steered": LOGS_DIR / "steered.jsonl",
+        "steered_paraphrased": LOGS_DIR / "steered_paraphrased.jsonl",
+    }
+    missing = [name for name, path in logs.items() if not path.exists()]
+    if missing:
         raise SystemExit("Run demo/build_logs.py first to generate the event logs.")
 
     declared = declared_task_context()
     null = NullTaskContext()
 
-    data = {
-        "benign": {
-            "NullTaskContext": build_view(benign_log, null),
-            "DeclaredTaskContext": build_view(benign_log, declared),
-        },
-        "steered": {
-            "NullTaskContext": build_view(steered_log, null),
-            "DeclaredTaskContext": build_view(steered_log, declared),
-        },
-        "window": {"start": WINDOW.start.isoformat(), "end": WINDOW.end.isoformat()},
+    data: dict[str, object] = {
+        scenario: {
+            "NullTaskContext": build_view(path, null),
+            "DeclaredTaskContext": build_view(path, declared),
+        }
+        for scenario, path in logs.items()
     }
+    data["window"] = {"start": WINDOW.start.isoformat(), "end": WINDOW.end.isoformat()}
 
     out_path = LOGS_DIR / "viz_data.json"
     out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")

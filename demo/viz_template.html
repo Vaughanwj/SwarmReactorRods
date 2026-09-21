@@ -212,9 +212,11 @@
 
 <h1>Coupling Propagation Map</h1>
 <p class="subtitle">
-  Two replayed swarm logs, same measurement. Toggle the scenario and the
+  Three replayed swarm logs, same measurement. Toggle the scenario and the
   TaskContext to see why an agent's own declared task, not just the raw
-  reads and writes, decides whether a cross-agent hand-off counts as coupling.
+  reads and writes, decides whether a cross-agent hand-off counts as coupling
+  &mdash; and toggle to the paraphrased scenario to see exact-match identity's
+  blind spot do the same thing from the opposite direction.
 </p>
 
 <div class="controls">
@@ -223,6 +225,7 @@
     <div class="segmented" role="group" aria-labelledby="scenario-label" id="scenario-toggle">
       <button type="button" data-value="benign" aria-pressed="true">Benign</button>
       <button type="button" data-value="steered" aria-pressed="false">Steered</button>
+      <button type="button" data-value="steered_paraphrased" aria-pressed="false">Steered (paraphrased)</button>
     </div>
   </div>
   <div class="control-group">
@@ -296,7 +299,8 @@
 </div>
 
 <footer>
-  Generated from <code>demo/benign.jsonl</code> and <code>demo/steered.jsonl</code> in
+  Generated from <code>demo/benign.jsonl</code>, <code>demo/steered.jsonl</code> and
+  <code>demo/steered_paraphrased.jsonl</code> in
   the SwarmReactorRods repository, replayed through
   <code>propagation_recorder</code>'s <code>JsonlReplayAdapter</code>. Node/edge
   classification is derived for this visualization only; the coupling numbers
@@ -323,6 +327,8 @@ const CONTEXT_COPY = {
   NullTaskContext: "<strong>Null (naive):</strong> nothing is declared. Every cross-agent read the library sees counts as coupling, whether or not it was that agent's job.",
   DeclaredTaskContext: "<strong>Declared:</strong> the pipeline's real hand-offs (planner → researcher → writer → editor) are declared through a TaskContext adapter. Only reads outside that declaration count as coupling.",
 };
+
+const PARAPHRASED_NOTE = " <strong>This scenario paraphrases the injected instruction instead of repeating it verbatim.</strong> Under exact-match identity, none of the three paraphrased reads resolve to the artifact the injector produced &mdash; they're recorded but ignored, exactly as documented. A low k here is a blind spot, not a clean bill of health.";
 
 let state = { scenario: "benign", context: "NullTaskContext", showTable: false };
 
@@ -361,7 +367,8 @@ function renderControls() {
   document.getElementById("view-toggle").setAttribute("aria-pressed", String(state.showTable));
   document.getElementById("diagram-card").hidden = state.showTable;
   document.getElementById("table-card").hidden = !state.showTable;
-  document.getElementById("context-note").innerHTML = CONTEXT_COPY[state.context];
+  document.getElementById("context-note").innerHTML =
+    CONTEXT_COPY[state.context] + (state.scenario === "steered_paraphrased" ? PARAPHRASED_NOTE : "");
 }
 
 function renderStats() {
@@ -378,9 +385,16 @@ function renderStats() {
   const dot = pill.querySelector(".pill-dot");
   pill.classList.remove("good", "critical");
   dot.classList.remove("good", "critical");
-  if (est.coupled_actions === 0) {
+  const isBlindSpot = state.scenario === "steered_paraphrased" && est.coupled_actions === 0;
+  if (est.coupled_actions === 0 && !isBlindSpot) {
     pill.classList.add("good"); dot.classList.add("good");
     pillText.textContent = "Clean";
+  } else if (isBlindSpot) {
+    // A zero reading here isn't a clean pipeline, it's exact-match identity
+    // failing to resolve a paraphrase. Coloring this "good" would be the
+    // dashboard lying by omission -- flag it instead.
+    pill.classList.add("critical"); dot.classList.add("critical");
+    pillText.textContent = "Blind spot, not clean";
   } else {
     pill.classList.add("critical"); dot.classList.add("critical");
     pillText.textContent = "Elevated";

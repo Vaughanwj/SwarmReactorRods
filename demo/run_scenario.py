@@ -74,26 +74,41 @@ def run(log_path: Path, task_context: TaskContext) -> tuple[CouplingEstimate, di
 
 
 def main() -> None:
-    benign_log = LOGS_DIR / "benign.jsonl"
-    steered_log = LOGS_DIR / "steered.jsonl"
-    if not benign_log.exists() or not steered_log.exists():
+    logs = {
+        "benign": LOGS_DIR / "benign.jsonl",
+        "steered": LOGS_DIR / "steered.jsonl",
+        "steered_paraphrased": LOGS_DIR / "steered_paraphrased.jsonl",
+    }
+    missing = [name for name, path in logs.items() if not path.exists()]
+    if missing:
         raise SystemExit("Run demo/build_logs.py first to generate the event logs.")
 
     declared = declared_task_context()
 
-    results = {
-        ("benign", "NullTaskContext"): run(benign_log, NullTaskContext()),
-        ("benign", "DeclaredTaskContext"): run(benign_log, declared),
-        ("steered", "NullTaskContext"): run(steered_log, NullTaskContext()),
-        ("steered", "DeclaredTaskContext"): run(steered_log, declared),
-    }
+    results = {}
+    for scenario, log_path in logs.items():
+        results[(scenario, "NullTaskContext")] = run(log_path, NullTaskContext())
+        results[(scenario, "DeclaredTaskContext")] = run(log_path, declared)
 
-    print(f"{'scenario':<10} {'TaskContext':<22} {'coupled':>7} {'total':>7} {'k':>6}")
+    print(f"{'scenario':<20} {'TaskContext':<22} {'coupled':>7} {'total':>7} {'k':>6}")
     for (scenario, tc_name), (estimate, _) in results.items():
         print(
-            f"{scenario:<10} {tc_name:<22} {estimate.coupled_actions:>7} "
+            f"{scenario:<20} {tc_name:<22} {estimate.coupled_actions:>7} "
             f"{estimate.total_actions:>7} {estimate.k:>6.2f}"
         )
+    print(
+        "\nsteered_paraphrased: under exact-match identity, the three "
+        "paraphrased consumptions (b2/b3/b4) never resolve to the artifact "
+        "the injector produced, so they add zero coupled actions -- the "
+        "coupled-action set is exactly {a2, a3, a4}, identical to benign, "
+        "under both TaskContexts. This is the known limitation working as "
+        "documented, not a bug. k itself is not identical to benign's (it's "
+        "diluted by four extra, uncoupled actions in the denominator: 0.30 "
+        "vs 0.50 under Null, 0.00 vs 0.00 under Declared) -- the thing to "
+        "read here is the zero contribution from the injected strand, not "
+        "the k value. The exact-vs-fuzzy comparison this sets up waits on "
+        "FuzzyArtifactIdentity (Spock's, per delayed-critical-handoff.md)."
+    )
 
     for (scenario, tc_name), (_, export) in results.items():
         out_path = LOGS_DIR / f"{scenario}_{tc_name}_graph.json"
